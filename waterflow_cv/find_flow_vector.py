@@ -14,7 +14,7 @@ def mask_image(frame):
     return frame
 
 # Replace 'thermo_video.mp4' with your video file path
-cap = cv2.VideoCapture("thermal_videos/flow_cropped.mp4")
+cap = cv2.VideoCapture("../thermal_videos/flow_cropped.mp4")
 
 
 # Read the first frame
