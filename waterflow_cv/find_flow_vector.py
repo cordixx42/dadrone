@@ -11,7 +11,6 @@ if not ret:
     cap.release()
     exit()
 
-#frame1 = mask_image(frame1)
 prvs = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
 height, width = prvs.shape
 
