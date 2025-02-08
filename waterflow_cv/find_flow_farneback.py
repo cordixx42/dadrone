@@ -61,7 +61,7 @@ def detect_flow_direction(image_folder):
         prev_gray = next_gray
 
 # Set the folder containing the thermal JPG images
-image_folder = "path_to_your_thermal_images"
+image_folder = "../"
 
 # Run the detection
 detect_flow_direction(image_folder)
