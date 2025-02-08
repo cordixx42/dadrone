@@ -3,6 +3,7 @@ import numpy as np
 
 cap = cv2.VideoCapture("thermal_videos/flow_cropped.mp4")
 
+
 # Read the first frame
 ret, frame1 = cap.read()
 if not ret:
@@ -10,6 +11,7 @@ if not ret:
     cap.release()
     exit()
 
+#frame1 = mask_image(frame1)
 prvs = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
 height, width = prvs.shape
 
@@ -24,6 +26,7 @@ while True:
     if not ret:
         break
 
+    
     next_frame = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
     flow = cv2.calcOpticalFlowFarneback(prvs, next_frame, 
                                         None, 
