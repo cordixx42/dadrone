@@ -2,7 +2,7 @@ import numpy as np
 import cv2 as cv
 import argparse
 import os
-import re 
+import re
 
 
 def mask_image(frame):
@@ -11,34 +11,19 @@ def mask_image(frame):
    
     # Create a mask for pixels where the red channel is high and the green/blue channels are lower
     mask = (frame[:, :, 2] > red_threshold) 
-    #& (image[:, :, 1] < green_blue_threshold) & (image[:, :, 0] < green_blue_threshold)
     
     # Convert all non-"very red" pixels to white (255, 255, 255)
     frame[~mask] = [255, 255, 255]
     return frame
 
 # Parse command line arguments
-parser = argparse.ArgumentParser(description='This sample demonstrates Lucas-Kanade Optical Flow calculation using multiple image frames.')
+parser = argparse.ArgumentParser(description='This sample demonstrates Dense Optical Flow calculation using multiple image frames.')
 parser.add_argument('folder', type=str, help='path to the folder containing the image files')
 args = parser.parse_args()
 
-# Params for ShiTomasi corner detection
-feature_params = dict(maxCorners=100,
-                      qualityLevel=0.3,
-                      minDistance=7,
-                      blockSize=7)
-
-# Parameters for Lucas-Kanade optical flow
-lk_params = dict(winSize=(15, 15),
-                 maxLevel=2,
-                 criteria=(cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
-
-# Create some random colors for visualization
-color = np.random.randint(0, 255, (100, 3))
-
 # Get a sorted list of image files in the folder
 image_files = [f for f in os.listdir(args.folder) if f.endswith('.jpg')]
-# image_files.sort()  # Sort the images by name (adjust sorting if filenames don't ensure proper order)
+# Sort the images by numeric order (if the filenames are numbers)
 image_files.sort(key=lambda x: int(re.search(r'(\d+)', x).group()))
 
 if len(image_files) == 0:
@@ -49,10 +34,8 @@ first_image = os.path.join(args.folder, image_files[0])
 old_frame = cv.imread(first_image)
 if old_frame is None:
     raise ValueError(f"Could not load image: {first_image}")
-# old_frame = mask_image(old_frame)
-#old_frame = cv.flip(old_frame, 1)
+old_frame = mask_image(old_frame)
 old_gray = cv.cvtColor(old_frame, cv.COLOR_BGR2GRAY)
-p0 = cv.goodFeaturesToTrack(old_gray, mask=None, **feature_params)
 
 # Create a mask for drawing the optical flow
 mask = np.zeros_like(old_frame)
@@ -65,29 +48,39 @@ for image_filename in image_files[1:]:
     if frame is None:
         print(f"Skipping invalid image: {image_path}")
         continue
-    # frame = mask_image(frame)
-    #frame = cv.flip(frame, 1)
+    frame = mask_image(frame)
     frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
 
-    # Calculate optical flow
-    p1, st, err = cv.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
+    # Calculate dense optical flow using Farneback method
+    flow = cv.calcOpticalFlowFarneback(old_gray, frame_gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
 
-    # Select good points
-    if p1 is not None:
-        good_new = p1[st == 1]
-        good_old = p0[st == 1]
+    # Visualize the flow by drawing arrows for each pixel
+    hsv = np.zeros_like(frame)
+    mag, ang = cv.cartToPolar(flow[..., 0], flow[..., 1])
+    hsv[..., 0] = ang * 180 / np.pi / 2  # Hue represents the flow direction
+    hsv[..., 1] = 255  # Saturation is set to the maximum
+    hsv[..., 2] = cv.normalize(mag, None, 0, 255, cv.NORM_MINMAX)  # Value represents the flow magnitude
+    rgb = cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
 
-        # Draw the tracks
-        for i, (new, old) in enumerate(zip(good_new, good_old)):
-            a, b = new.ravel()
-            c, d = old.ravel()
-            mask = cv.line(mask, (int(a), int(b)), (int(c), int(d)), color[i].tolist(), 2)
-            frame = cv.circle(frame, (int(a), int(b)), 5, color[i].tolist(), -1)
+    # Draw motion vectors (arrows) on the image
+    step = 10  # Step size to reduce the density of arrows
+    for y in range(0, frame.shape[0], step):
+        for x in range(0, frame.shape[1], step):
+            # Get the flow vectors at each pixel
+            flow_at_point = flow[y, x]
+            fx, fy = flow_at_point[0], flow_at_point[1]
+            # Scale the flow vectors for better visualization
+            magnitude = np.sqrt(fx**2 + fy**2)
+            if magnitude > 1:  # Only draw significant vectors
+                cv.arrowedLine(frame, (x, y), (int(x + fx), int(y + fy)), (0, 255, 0), 1, tipLength=0.03)
 
-        img = cv.add(frame, mask)
-        cv.imshow('Optical Flow', img)
-        cv.waitKey(0)
+    # Combine the original frame with the flow visualization
+    img = cv.addWeighted(frame, 0.7, rgb, 0.3, 0)
 
+    # Show the final image with arrows and flow
+    cv.imshow('Dense Optical Flow with Vectors', img)
+    cv.waitKey(0)
+    
     # Wait for 'Esc' key to exit
     k = cv.waitKey(30) & 0xff
     if k == 27:
@@ -95,6 +88,5 @@ for image_filename in image_files[1:]:
 
     # Update previous frame and points
     old_gray = frame_gray.copy()
-    p0 = good_new.reshape(-1, 1, 2)
 
 cv.destroyAllWindows()
